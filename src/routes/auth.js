@@ -59,7 +59,13 @@ router.get('/me', async (req, res) => {
        FROM users WHERE id = ?`,
       [req.session.userId]
     );
-    res.json({ authenticated: true, user });
+    res.json({
+      authenticated: true,
+      user: {
+        ...user,
+        is_admin: Boolean(process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL)
+      }
+    });
   } catch {
     res.json({ authenticated: false });
   }

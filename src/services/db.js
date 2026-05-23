@@ -42,6 +42,19 @@ function initSchema() {
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
+    CREATE TABLE IF NOT EXISTS payment_requests (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      offer_id TEXT NOT NULL,
+      offer_name TEXT NOT NULL,
+      price TEXT NOT NULL,
+      proof TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at TEXT DEFAULT (datetime('now')),
+      reviewed_at TEXT,
+      reviewed_by TEXT,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
   `);
 
   [

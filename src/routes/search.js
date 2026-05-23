@@ -48,6 +48,30 @@ function isSubscriptionActive(user) {
   return user.subscription_expires_at && new Date(user.subscription_expires_at) > new Date();
 }
 
+function isAdmin(user) {
+  return Boolean(process.env.ADMIN_EMAIL && user?.email === process.env.ADMIN_EMAIL);
+}
+
+async function applyOfferToUser(userId, offer) {
+  if (offer.credits) {
+    await dbRun(
+      'UPDATE users SET credit_balance = COALESCE(credit_balance, 0) + ? WHERE id = ?',
+      [offer.credits, userId]
+    );
+    return;
+  }
+
+  const expires = new Date();
+  expires.setDate(expires.getDate() + offer.durationDays);
+  await dbRun(
+    `UPDATE users
+     SET subscription_plan = ?, subscription_expires_at = ?, daily_credit_limit = ?,
+         daily_credits_used = 0, last_credit_date = ?
+     WHERE id = ?`,
+    [offer.id, expires.toISOString(), offer.dailyCredits, todayKey(), userId]
+  );
+}
+
 async function checkCredits(req, res, next) {
   const user = await dbGet('SELECT * FROM users WHERE id = ?', [req.session.userId]);
   if (!user) return res.status(401).json({ error: 'Utilisateur introuvable.' });
@@ -76,7 +100,7 @@ async function checkCredits(req, res, next) {
 
 router.get('/billing/offers', requireAuth, async (req, res) => {
   const user = await dbGet(
-    'SELECT credit_balance, daily_credit_limit, daily_credits_used, last_credit_date, subscription_plan, subscription_expires_at FROM users WHERE id = ?',
+    'SELECT email, credit_balance, daily_credit_limit, daily_credits_used, last_credit_date, subscription_plan, subscription_expires_at FROM users WHERE id = ?',
     [req.session.userId]
   );
   const dailyUsed = user.last_credit_date === todayKey() ? (user.daily_credits_used || 0) : 0;
@@ -84,6 +108,8 @@ router.get('/billing/offers', requireAuth, async (req, res) => {
   res.json({
     costPerSearch: SEARCH_COST,
     offers: BILLING_OFFERS,
+    paypalPaymentLink: process.env.PAYPAL_PAYMENT_LINK || '',
+    isAdmin: isAdmin(user),
     wallet: {
       creditBalance: user.credit_balance || 0,
       dailyLimit,
@@ -102,29 +128,69 @@ router.post('/billing/purchase', requireAuth, async (req, res) => {
   const user = await dbGet('SELECT * FROM users WHERE id = ?', [req.session.userId]);
   if (!user) return res.status(401).json({ error: 'Utilisateur introuvable.' });
 
-  if (offer.credits) {
-    await dbRun(
-      'UPDATE users SET credit_balance = COALESCE(credit_balance, 0) + ? WHERE id = ?',
-      [offer.credits, req.session.userId]
+  const proof = String(req.body.proof || '').trim().slice(0, 500);
+  const requestId = uuidv4();
+  await dbRun(
+    `INSERT INTO payment_requests (id, user_id, offer_id, offer_name, price, proof, status)
+     VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
+    [requestId, req.session.userId, offer.id, offer.name, offer.price, proof]
+  );
+
+  res.json({
+    success: true,
+    requestId,
+    offer,
+    paypalPaymentLink: process.env.PAYPAL_PAYMENT_LINK || '',
+    message: 'Demande envoyee. Les credits seront ajoutes apres validation admin.'
+  });
+});
+
+router.get('/billing/requests', requireAuth, async (req, res) => {
+  const user = await dbGet('SELECT * FROM users WHERE id = ?', [req.session.userId]);
+  if (!user) return res.status(401).json({ error: 'Utilisateur introuvable.' });
+
+  if (isAdmin(user)) {
+    const requests = await dbAll(
+      `SELECT pr.*, u.email
+       FROM payment_requests pr
+       JOIN users u ON u.id = pr.user_id
+       ORDER BY pr.created_at DESC
+       LIMIT 100`
     );
-  } else {
-    const expires = new Date();
-    expires.setDate(expires.getDate() + offer.durationDays);
-    await dbRun(
-      `UPDATE users
-       SET subscription_plan = ?, subscription_expires_at = ?, daily_credit_limit = ?,
-           daily_credits_used = 0, last_credit_date = ?
-       WHERE id = ?`,
-      [offer.id, expires.toISOString(), offer.dailyCredits, todayKey(), req.session.userId]
-    );
+    return res.json({ requests, isAdmin: true });
   }
 
-  const updated = await dbGet(
-    `SELECT credit_balance, daily_credit_limit, daily_credits_used, last_credit_date,
-      subscription_plan, subscription_expires_at FROM users WHERE id = ?`,
+  const requests = await dbAll(
+    `SELECT id, offer_id, offer_name, price, proof, status, created_at, reviewed_at
+     FROM payment_requests
+     WHERE user_id = ?
+     ORDER BY created_at DESC
+     LIMIT 30`,
     [req.session.userId]
   );
-  res.json({ success: true, offer, user: updated, simulated: true });
+  res.json({ requests, isAdmin: false });
+});
+
+router.post('/billing/requests/:id/approve', requireAuth, async (req, res) => {
+  const admin = await dbGet('SELECT * FROM users WHERE id = ?', [req.session.userId]);
+  if (!isAdmin(admin)) return res.status(403).json({ error: 'Reserve admin.' });
+
+  const request = await dbGet('SELECT * FROM payment_requests WHERE id = ?', [req.params.id]);
+  if (!request) return res.status(404).json({ error: 'Demande introuvable.' });
+  if (request.status !== 'pending') return res.status(400).json({ error: 'Demande deja traitee.' });
+
+  const offer = BILLING_OFFERS.find((item) => item.id === request.offer_id);
+  if (!offer) return res.status(400).json({ error: 'Offre introuvable.' });
+
+  await applyOfferToUser(request.user_id, offer);
+  await dbRun(
+    `UPDATE payment_requests
+     SET status = 'approved', reviewed_at = datetime('now'), reviewed_by = ?
+     WHERE id = ?`,
+    [admin.email, request.id]
+  );
+
+  res.json({ success: true });
 });
 
 router.post('/search', requireAuth, checkCredits, async (req, res) => {

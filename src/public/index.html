@@ -221,6 +221,8 @@
     .offer ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.65; font-size: 13px; }
     .offer .btn { margin-top: auto; }
     .wallet-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+    .pay-box { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; background: rgba(57,255,136,.045); display: grid; gap: 10px; }
+    .payment-request { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; background: rgba(255,255,255,.025); display: grid; gap: 8px; }
 
     @media (max-width: 1080px) {
       .auth-shell, .workspace { grid-template-columns: 1fr; }
@@ -719,8 +721,8 @@
     async function showBilling() {
       document.querySelectorAll('.nav-btn[data-type]').forEach(btn => btn.classList.remove('active'));
       $('panel-title').textContent = 'Credits et abonnements';
-      $('panel-subtitle').textContent = 'Chaque analyse consomme 10 credits. Choisis un pack ou un abonnement journalier.';
-      $('terminal').innerHTML = '<div class="empty-term">Page paiement prete. Les achats sont simules pour le moment, puis branchables sur Stripe.</div>';
+      $('panel-subtitle').textContent = 'Chaque analyse consomme 10 credits. Paiement simple par PayPal, puis validation admin.';
+      $('terminal').innerHTML = '<div class="empty-term">Paiement PayPal manuel: le client paie, envoie une preuve, puis l admin valide les credits.</div>';
       $('results').classList.remove('hidden');
       $('results').innerHTML = '<div class="summary-card"><h3>Chargement des offres...</h3><p>Lecture du portefeuille et des plans disponibles.</p></div>';
 
@@ -731,7 +733,7 @@
       $('results').innerHTML = `
         <div class="summary-card">
           <h3>Portefeuille</h3>
-          <p>Une recherche coute ${esc(data.costPerSearch)} credits. Les credits pack restent disponibles, les abonnements ajoutent des credits utilisables chaque jour.</p>
+          <p>Une recherche coute ${esc(data.costPerSearch)} credits. Pour acheter: ouvre PayPal, paie le montant de l offre, puis envoie une preuve dans l app.</p>
         </div>
         <div class="wallet-grid">
           <div class="stat"><small>Credits pack</small><strong>${esc(data.wallet.creditBalance)}</strong><span>disponibles</span></div>
@@ -742,18 +744,23 @@
         <div>
           <div class="section-title">Offres recommandees</div>
           <div class="billing-grid">
-            ${data.offers.map(renderOffer).join('')}
+            ${data.offers.map(offer => renderOffer(offer, data.paypalPaymentLink)).join('')}
           </div>
         </div>
+        <div>
+          <div class="section-title">${data.isAdmin ? 'Demandes clients a valider' : 'Mes demandes de paiement'}</div>
+          <div id="payment-requests" class="grid-2"><div class="payment-request">Chargement...</div></div>
+        </div>
         <div class="summary-card">
-          <h3>Amelioration conseillee</h3>
-          <p>Prochaine etape logique: brancher Stripe Checkout, ajouter factures PDF, codes promo, limites par equipe et dashboard revenus admin.</p>
+          <h3>Important</h3>
+          <p>Les credits sont ajoutes seulement apres validation. Mets ton lien PayPal dans Render avec la variable PAYPAL_PAYMENT_LINK.</p>
         </div>
       `;
       document.querySelectorAll('[data-buy-offer]').forEach(btn => btn.addEventListener('click', () => purchaseOffer(btn.dataset.buyOffer)));
+      await loadPaymentRequests();
     }
 
-    function renderOffer(offer) {
+    function renderOffer(offer, paypalLink) {
       const included = offer.credits
         ? [`${offer.credits} credits`, `${Math.floor(offer.credits / 10)} analyses`, 'Sans expiration']
         : [`${offer.dailyCredits} credits par jour`, `${Math.floor(offer.dailyCredits / 10)} analyses par jour`, `${offer.durationDays} jours inclus`];
@@ -764,18 +771,55 @@
           <div class="price">${esc(offer.price)}</div>
           <p>${esc(offer.description)}</p>
           <ul>${included.map(item => `<li>${esc(item)}</li>`).join('')}</ul>
-          <button class="btn btn-primary" data-buy-offer="${esc(offer.id)}">Choisir cette offre</button>
+          <div class="pay-box">
+            ${paypalLink ? `<a class="btn btn-primary" href="${esc(paypalLink)}" target="_blank" rel="noreferrer">Payer avec PayPal</a>` : '<button class="btn btn-primary" disabled>Lien PayPal a configurer</button>'}
+            <input class="input" id="proof-${esc(offer.id)}" placeholder="Colle ici ton email PayPal ou une preuve de paiement">
+            <button class="btn" data-buy-offer="${esc(offer.id)}">Envoyer la preuve</button>
+          </div>
         </article>
       `;
     }
 
     async function purchaseOffer(offerId) {
+      const proof = $(`proof-${offerId}`)?.value?.trim() || '';
+      if (!proof) return toast('Ajoute ton email PayPal ou une preuve avant d envoyer.');
       const data = await api('/api/billing/purchase', {
         method: 'POST',
-        body: JSON.stringify({ offerId })
+        body: JSON.stringify({ offerId, proof })
       });
       if (data.error) return toast(data.error);
-      toast('Offre ajoutee au compte. Paiement simule.');
+      toast('Demande envoyee. Validation admin necessaire.');
+      await showBilling();
+    }
+
+    async function loadPaymentRequests() {
+      const wrap = $('payment-requests');
+      if (!wrap) return;
+      const data = await api('/api/billing/requests');
+      if (data.error) {
+        wrap.innerHTML = `<div class="payment-request">${esc(data.error)}</div>`;
+        return;
+      }
+      if (!data.requests?.length) {
+        wrap.innerHTML = '<div class="payment-request">Aucune demande pour le moment.</div>';
+        return;
+      }
+      wrap.innerHTML = data.requests.map(req => `
+        <div class="payment-request">
+          <b>${esc(req.offer_name)} - ${esc(req.price)}</b>
+          <span class="muted">${data.isAdmin ? esc(req.email) + ' - ' : ''}${new Date(req.created_at).toLocaleString('fr-FR')}</span>
+          <span>Statut: <b>${esc(req.status)}</b></span>
+          <span class="muted">Preuve: ${esc(req.proof || 'non fournie')}</span>
+          ${data.isAdmin && req.status === 'pending' ? `<button class="btn btn-primary" data-approve-payment="${esc(req.id)}">Valider et ajouter les credits</button>` : ''}
+        </div>
+      `).join('');
+      document.querySelectorAll('[data-approve-payment]').forEach(btn => btn.addEventListener('click', () => approvePayment(btn.dataset.approvePayment)));
+    }
+
+    async function approvePayment(id) {
+      const data = await api(`/api/billing/requests/${id}/approve`, { method: 'POST' });
+      if (data.error) return toast(data.error);
+      toast('Paiement valide, credits ajoutes.');
       await showBilling();
     }
 
