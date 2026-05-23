@@ -1,0 +1,28 @@
+{
+  "name": "osint-saas",
+  "version": "1.0.0",
+  "description": "OSINT SaaS platform powered by AI",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20 <25"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-session": "^1.17.3",
+    "bcryptjs": "^2.4.3",
+    "sqlite3": "^5.1.7",
+    "node-fetch": "^2.7.0",
+    "dotenv": "^16.4.1",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  }
+}

@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OSINT Studio</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #020604;
+      --panel: #07120b;
+      --panel-2: #0a1b10;
+      --line: rgba(54, 255, 130, .18);
+      --line-2: rgba(54, 255, 130, .33);
+      --text: #eaffef;
+      --muted: #74a982;
+      --soft: #b7e8c2;
+      --cyan: #39ff88;
+      --blue: #19c96f;
+      --amber: #c7ff61;
+      --red: #ff6477;
+      --green: #39ff88;
+      --purple: #7affb2;
+      --radius: 8px;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+    body {
+      background:
+        linear-gradient(90deg, rgba(57,255,136,.035) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(57,255,136,.03) 1px, transparent 1px),
+        radial-gradient(circle at 22% 8%, rgba(57, 255, 136, .15), transparent 34%),
+        radial-gradient(circle at 82% 0%, rgba(25, 201, 111, .12), transparent 30%),
+        linear-gradient(180deg, #041008 0%, #020604 46%, #010302 100%);
+      background-size: 42px 42px, 42px 42px, auto, auto, auto;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+    .hidden { display: none !important; }
+
+    .topbar {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; align-items: center; gap: 14px;
+      height: 64px; padding: 0 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 11, 18, .82);
+      backdrop-filter: blur(18px);
+    }
+    .brand { display: flex; align-items: center; gap: 11px; min-width: 220px; }
+    .brand-mark {
+      display: grid; place-items: center;
+      width: 34px; height: 34px; border: 1px solid rgba(50, 214, 198, .45);
+      border-radius: 8px; background: linear-gradient(145deg, rgba(57,255,136,.22), rgba(25,201,111,.12));
+      color: var(--cyan); font-family: var(--mono); font-weight: 800;
+    }
+    .brand-title { font-weight: 850; letter-spacing: .02em; }
+    .brand-sub { color: var(--muted); font-size: 12px; margin-top: 1px; }
+    .top-status { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 7px;
+      border: 1px solid var(--line); border-radius: 999px;
+      padding: 6px 10px; color: var(--soft); font-size: 12px; background: rgba(255,255,255,.03);
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px var(--green); }
+    .user-area { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+
+    .btn {
+      border: 1px solid var(--line-2); background: rgba(255,255,255,.04); color: var(--text);
+      border-radius: var(--radius); min-height: 38px; padding: 0 14px; font-weight: 750;
+      transition: transform .15s ease, border-color .15s ease, background .15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: rgba(50,214,198,.45); background: rgba(50,214,198,.08); }
+    .btn-primary { border-color: rgba(50,214,198,.55); color: #03110f; background: linear-gradient(135deg, var(--cyan), #86f5d1); }
+    .btn-danger { border-color: rgba(255,111,125,.36); color: #ffd9dd; background: rgba(255,111,125,.09); }
+    .btn-ghost { background: transparent; }
+    .btn-sm { min-height: 32px; padding: 0 10px; font-size: 12px; }
+
+    .auth-shell {
+      min-height: calc(100vh - 64px); display: grid; grid-template-columns: minmax(0, 1.15fr) 420px; gap: 28px;
+      padding: 42px; align-items: center;
+    }
+    .intro h1 { font-size: clamp(40px, 7vw, 82px); line-height: .92; letter-spacing: 0; margin: 0 0 18px; max-width: 880px; }
+    .intro p { max-width: 690px; color: var(--soft); font-size: 18px; line-height: 1.7; }
+    .intro-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-top: 30px; max-width: 820px; }
+    .mini {
+      border: 1px solid var(--line); background: rgba(13,20,32,.72); border-radius: var(--radius);
+      padding: 16px; min-height: 128px;
+    }
+    .mini b { display: block; margin-bottom: 8px; }
+    .mini span { color: var(--muted); line-height: 1.55; font-size: 13px; }
+    .auth-card {
+      border: 1px solid var(--line); background: rgba(13,20,32,.88); border-radius: 10px;
+      padding: 24px; box-shadow: 0 24px 70px rgba(0,0,0,.34);
+    }
+    .auth-card h2 { margin: 0 0 6px; font-size: 24px; }
+    .auth-card p { margin: 0 0 22px; color: var(--muted); }
+    .field { display: grid; gap: 8px; margin-bottom: 14px; }
+    .field label { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+    .input {
+      width: 100%; min-height: 46px; border: 1px solid var(--line-2); border-radius: var(--radius);
+      background: rgba(4,8,14,.72); color: var(--text); padding: 0 13px; outline: none;
+    }
+    .input:focus { border-color: rgba(50,214,198,.7); box-shadow: 0 0 0 3px rgba(50,214,198,.1); }
+    .auth-error { color: var(--red); font-size: 13px; min-height: 18px; margin-bottom: 10px; }
+    .switch { margin-top: 14px; color: var(--muted); font-size: 13px; }
+    .switch button { color: var(--cyan); background: none; border: 0; padding: 0; font-weight: 800; }
+
+    .app { display: grid; grid-template-columns: 268px minmax(0,1fr); min-height: calc(100vh - 64px); }
+    .sidebar {
+      border-right: 1px solid var(--line); background: rgba(9,15,25,.72);
+      padding: 18px; position: sticky; top: 64px; height: calc(100vh - 64px); overflow: auto;
+    }
+    .side-label { color: var(--muted); font-size: 11px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; margin: 16px 0 8px; }
+    .nav-btn {
+      width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      border: 1px solid transparent; border-radius: var(--radius); background: transparent; color: var(--soft);
+      padding: 11px 12px; text-align: left; font-weight: 780;
+    }
+    .nav-btn span { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+    .nav-btn.active, .nav-btn:hover { border-color: var(--line); background: rgba(255,255,255,.045); color: var(--text); }
+    .quota { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-top: 20px; background: rgba(255,255,255,.03); }
+    .bar { height: 8px; background: rgba(255,255,255,.06); border-radius: 999px; overflow: hidden; margin: 10px 0 8px; }
+    .bar > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--cyan), var(--blue)); transition: width .3s ease; box-shadow: 0 0 16px rgba(57,255,136,.45); }
+    .quota small { color: var(--muted); }
+
+    .main { padding: 22px; overflow: hidden; }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+    .panel, .card {
+      border: 1px solid var(--line); background: rgba(13,20,32,.74); border-radius: 10px;
+      box-shadow: 0 18px 50px rgba(0,0,0,.18);
+    }
+    .panel { overflow: hidden; }
+    .panel-head { padding: 18px; border-bottom: 1px solid var(--line); display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .panel-head h2 { margin: 0 0 5px; font-size: 22px; }
+    .panel-head p { margin: 0; color: var(--muted); line-height: 1.5; }
+    .search-zone { padding: 18px; display: grid; gap: 13px; }
+    .target-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      border: 1px solid var(--line); color: var(--soft); background: rgba(255,255,255,.025);
+      border-radius: 999px; padding: 8px 11px; font-size: 12px; font-weight: 760;
+    }
+    .chip.on { border-color: rgba(50,214,198,.55); color: #dffef9; background: rgba(50,214,198,.1); }
+    .hint { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .terminal {
+      margin: 0 18px 18px; min-height: 218px; max-height: 330px; overflow: auto;
+      border: 1px solid var(--line); border-radius: var(--radius); background: #05080d;
+      padding: 14px; font-family: var(--mono); font-size: 12px; line-height: 1.75;
+    }
+    .term-line { display: flex; gap: 9px; }
+    .term-line i { color: var(--cyan); font-style: normal; width: 14px; flex: 0 0 14px; }
+    .muted { color: var(--muted); } .ok { color: var(--green); } .warn { color: var(--amber); } .err { color: var(--red); } .info { color: #8db7ff; } .bold { color: var(--text); font-weight: 900; }
+    .empty-term { min-height: 188px; display: grid; place-items: center; color: rgba(143,162,184,.45); text-align: center; }
+
+    .results { padding: 0 18px 18px; display: grid; gap: 14px; }
+    .summary-card { border: 1px solid rgba(50,214,198,.2); background: rgba(50,214,198,.06); border-radius: var(--radius); padding: 16px; }
+    .summary-card h3 { margin: 0 0 8px; }
+    .summary-card p { margin: 0; color: var(--soft); line-height: 1.65; }
+    .quick-read { display: grid; grid-template-columns: 1.2fr .8fr; gap: 12px; }
+    .plain-box { border: 1px solid var(--line); background: rgba(255,255,255,.025); border-radius: var(--radius); padding: 14px; }
+    .plain-box h4 { margin: 0 0 8px; font-size: 14px; }
+    .plain-box ul { margin: 0; padding-left: 18px; color: var(--soft); line-height: 1.7; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+    .stat { border: 1px solid var(--line); border-radius: var(--radius); padding: 13px; background: rgba(255,255,255,.025); min-width: 0; }
+    .stat small { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 850; }
+    .stat strong { display: block; font-family: var(--mono); font-size: 22px; margin: 7px 0 3px; }
+    .stat span { color: var(--muted); font-size: 12px; }
+    .section-title { margin: 2px 0 10px; color: var(--muted); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; font-weight: 850; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+    .finding, .risk, .source, .timeline-item {
+      border: 1px solid var(--line); border-radius: var(--radius); padding: 13px; background: rgba(255,255,255,.025);
+    }
+    .finding-head, .risk-head { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .finding b, .risk b { line-height: 1.35; }
+    .finding p, .risk p, .source p, .timeline-item p { color: var(--soft); line-height: 1.55; margin: 7px 0 0; font-size: 13px; }
+    .badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 850; white-space: nowrap; }
+    .sev-info, .tag-blue { color: #bcd3ff; background: rgba(77,141,255,.13); border: 1px solid rgba(77,141,255,.25); }
+    .sev-low, .tag-green { color: #c8ffd0; background: rgba(130,227,145,.12); border: 1px solid rgba(130,227,145,.24); }
+    .sev-medium, .tag-amber { color: #ffe2a4; background: rgba(242,189,85,.13); border: 1px solid rgba(242,189,85,.25); }
+    .sev-high, .sev-critical, .tag-red { color: #ffd3d8; background: rgba(255,111,125,.13); border: 1px solid rgba(255,111,125,.25); }
+    .tag-gray { color: #d0d8e2; background: rgba(255,255,255,.06); border: 1px solid var(--line); }
+    .tags { display: flex; flex-wrap: wrap; gap: 7px; }
+    .entities { display: flex; flex-wrap: wrap; gap: 8px; }
+    .entity { font-family: var(--mono); border: 1px solid var(--line); background: #08101b; border-radius: 6px; padding: 7px 9px; color: var(--soft); font-size: 12px; }
+    details.advanced { border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255,255,255,.018); padding: 12px; }
+    details.advanced summary { cursor: pointer; font-weight: 850; color: var(--cyan); }
+    details.advanced > div { margin-top: 14px; display: grid; gap: 14px; }
+    table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: var(--radius); }
+    th, td { border-bottom: 1px solid var(--line); padding: 10px; text-align: left; font-size: 13px; vertical-align: top; }
+    th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+    td { color: var(--soft); }
+
+    .side-stack { display: grid; gap: 16px; }
+    .card { padding: 16px; }
+    .card h3 { margin: 0 0 10px; font-size: 15px; }
+    .card p { color: var(--muted); margin: 0; line-height: 1.55; font-size: 13px; }
+    .actions { display: grid; gap: 9px; }
+    .history-list { display: grid; gap: 8px; max-height: 420px; overflow: auto; }
+    .history-item {
+      border: 1px solid var(--line); background: rgba(255,255,255,.025); border-radius: var(--radius);
+      padding: 10px; text-align: left; color: var(--text);
+    }
+    .history-item b { display: block; margin-bottom: 4px; word-break: break-word; }
+    .history-item small { color: var(--muted); }
+    .toast { position: fixed; right: 18px; bottom: 18px; z-index: 50; border: 1px solid var(--line); background: #0d1420; color: var(--text); border-radius: var(--radius); padding: 12px 14px; opacity: 0; transform: translateY(10px); transition: .2s; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .billing-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .offer {
+      position: relative; border: 1px solid var(--line); border-radius: 10px; padding: 18px;
+      background: linear-gradient(180deg, rgba(57,255,136,.075), rgba(255,255,255,.018));
+      min-height: 270px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .offer.featured { border-color: rgba(57,255,136,.64); box-shadow: 0 0 34px rgba(57,255,136,.12); }
+    .offer h3 { margin: 0; font-size: 18px; }
+    .offer .price { font-family: var(--mono); font-size: 30px; font-weight: 900; color: var(--cyan); text-shadow: 0 0 18px rgba(57,255,136,.25); }
+    .offer p { color: var(--soft); line-height: 1.55; margin: 0; }
+    .offer ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.65; font-size: 13px; }
+    .offer .btn { margin-top: auto; }
+    .wallet-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+
+    @media (max-width: 1080px) {
+      .auth-shell, .workspace { grid-template-columns: 1fr; }
+      .side-stack { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .quick-read { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 780px) {
+      .topbar { height: auto; min-height: 64px; flex-wrap: wrap; padding: 12px; }
+      .brand { min-width: 0; flex: 1; }
+      .top-status { order: 3; width: 100%; }
+      .auth-shell { padding: 22px 14px; }
+      .intro-grid, .grid-2, .side-stack, .billing-grid, .wallet-grid { grid-template-columns: 1fr; }
+      .app { grid-template-columns: 1fr; }
+      .sidebar { position: relative; top: auto; height: auto; border-right: 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+      .side-label, .quota { grid-column: 1 / -1; }
+      .main { padding: 12px; }
+      .target-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">OS</div>
+      <div>
+        <div class="brand-title">OSINT Studio</div>
+        <div class="brand-sub">Analyse publique et rapports detailles</div>
+      </div>
+    </div>
+    <div class="top-status">
+      <span class="pill"><span class="dot"></span>Mode legal</span>
+      <span class="pill">Sources publiques</span>
+      <span class="pill" id="mode-pill">Demo si API absente</span>
+    </div>
+    <div class="user-area hidden" id="user-area">
+      <span id="user-email"></span>
+      <button class="btn btn-danger btn-sm" id="logout-btn">Deconnexion</button>
+    </div>
+  </header>
+
+  <section id="auth-view" class="auth-shell">
+    <div class="intro">
+      <h1>Console OSINT poussee, claire et exploitable.</h1>
+      <p>Transforme un pseudo, domaine, email ou numero en rapport lisible: ce qui est important, les resultats concrets a ouvrir, les sources, le risque et les actions a faire.</p>
+      <div class="intro-grid">
+        <div class="mini"><b>Rapports faciles</b><span>Tu vois d'abord le resume, les preuves, les sources et ce qu'il faut faire.</span></div>
+        <div class="mini"><b>Ethique par design</b><span>Le systeme reste sur de l'information publique, avec limites, confiance et avertissements visibles.</span></div>
+        <div class="mini"><b>Historique complet</b><span>Reprends un dossier precedent, compare les resultats et exporte un rapport Markdown.</span></div>
+      </div>
+    </div>
+
+    <div class="auth-card">
+      <div id="login-form">
+        <h2>Connexion</h2>
+        <p>Accede a ton espace de recherche.</p>
+        <div class="field"><label>Email</label><input class="input" id="login-email" type="email" autocomplete="email" placeholder="toi@example.com"></div>
+        <div class="field"><label>Mot de passe</label><input class="input" id="login-password" type="password" autocomplete="current-password" placeholder="8 caracteres minimum"></div>
+        <div class="auth-error" id="login-error"></div>
+        <button class="btn btn-primary" id="login-btn" style="width:100%">Se connecter</button>
+        <div class="switch">Pas de compte ? <button id="show-register">Creer un compte</button></div>
+      </div>
+      <div id="register-form" class="hidden">
+        <h2>Creer un compte</h2>
+        <p>Un compte local suffit pour tester l'application.</p>
+        <div class="field"><label>Email</label><input class="input" id="register-email" type="email" autocomplete="email" placeholder="toi@example.com"></div>
+        <div class="field"><label>Mot de passe</label><input class="input" id="register-password" type="password" autocomplete="new-password" placeholder="8 caracteres minimum"></div>
+        <div class="auth-error" id="register-error"></div>
+        <button class="btn btn-primary" id="register-btn" style="width:100%">Creer le compte</button>
+        <div class="switch">Deja inscrit ? <button id="show-login">Se connecter</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="app-view" class="app hidden">
+    <aside class="sidebar">
+      <div class="side-label">Cibles</div>
+      <button class="nav-btn active" data-type="username">Username <span>USR</span></button>
+      <button class="nav-btn" data-type="domain">Domaine / IP <span>DNS</span></button>
+      <button class="nav-btn" data-type="email">Email <span>MAIL</span></button>
+      <button class="nav-btn" data-type="phone">Telephone <span>TEL</span></button>
+      <div class="side-label">Dossier</div>
+      <button class="nav-btn" id="history-nav">Historique <span>LOG</span></button>
+      <button class="nav-btn" id="billing-nav">Acheter credits <span>PAY</span></button>
+      <div class="quota">
+        <b>Portefeuille credits</b>
+        <div class="bar"><div id="quota-fill"></div></div>
+        <small id="quota-text">30 credits disponibles</small>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="workspace">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2 id="panel-title">Recherche username</h2>
+              <p id="panel-subtitle">Recoupe les presences publiques, variantes de pseudo, liens et signaux de risque.</p>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="clear-btn">Nouveau dossier</button>
+          </div>
+
+          <div class="search-zone">
+            <div class="target-row">
+              <input class="input" id="query-input" placeholder="ex: pseudo_public" />
+              <button class="btn btn-primary" id="search-btn">Lancer l'analyse</button>
+            </div>
+            <div class="chips" id="chips"></div>
+            <div class="hint">Chaque analyse coute 10 credits. Important: verifie toujours les sources primaires. L'application ne fait pas d'intrusion et ne valide pas des informations sensibles.</div>
+          </div>
+
+          <div class="terminal" id="terminal">
+            <div class="empty-term">Pret. Choisis une cible et lance une analyse.</div>
+          </div>
+
+          <div class="results hidden" id="results"></div>
+        </section>
+
+        <aside class="side-stack">
+          <div class="card">
+            <h3>Actions rapport</h3>
+            <div class="actions">
+              <button class="btn" id="export-btn">Exporter Markdown</button>
+              <button class="btn" id="copy-btn">Copier JSON</button>
+              <button class="btn" id="print-btn">Imprimer</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Historique</h3>
+            <div class="history-list" id="history-list"><p>Aucun dossier charge.</p></div>
+          </div>
+          <div class="card">
+            <h3>Cadre legal</h3>
+            <p>Travaille uniquement avec autorisation legitime et sources publiques. Les hypotheses doivent etre confirmees avant toute decision.</p>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </section>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const types = {
+      username: {
+        title: 'Recherche username',
+        subtitle: 'Recoupe les presences publiques, variantes de pseudo, liens et signaux de risque.',
+        placeholder: 'ex: pseudo_public'
+      },
+      domain: {
+        title: 'Analyse domaine / IP',
+        subtitle: 'Synthese DNS, WHOIS, infrastructure, reputation et exposition publique.',
+        placeholder: 'ex: example.com'
+      },
+      email: {
+        title: 'Analyse email',
+        subtitle: 'Validation de format, domaine, surface de contact et pistes d exposition publique.',
+        placeholder: 'ex: contact@example.com'
+      },
+      phone: {
+        title: 'Analyse telephone',
+        subtitle: 'Analyse prudente du format, contexte public possible et risques de contact abusif.',
+        placeholder: 'ex: +33 6 00 00 00 00'
+      }
+    };
+    const moduleOptions = [
+      ['social', 'Social'],
+      ['infrastructure', 'Infrastructure'],
+      ['leaks_public', 'Expositions publiques'],
+      ['threat_intel', 'Threat intel'],
+      ['archives', 'Archives'],
+      ['correlation', 'Correlation'],
+      ['report', 'Rapport']
+    ];
+    let currentType = 'username';
+    let currentUser = null;
+    let currentResult = null;
+    let currentQuery = '';
+
+    const $ = (id) => document.getElementById(id);
+    const esc = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+
+    async function api(url, options = {}) {
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok && !data.error) data.error = `Erreur HTTP ${res.status}`;
+      return data;
+    }
+
+    function toast(message) {
+      const el = $('toast');
+      el.textContent = message;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2800);
+    }
+
+    function setAuthView(isLoggedIn) {
+      $('auth-view').classList.toggle('hidden', isLoggedIn);
+      $('app-view').classList.toggle('hidden', !isLoggedIn);
+      $('user-area').classList.toggle('hidden', !isLoggedIn);
+      if (currentUser) $('user-email').textContent = currentUser.email;
+    }
+
+    function switchAuth(mode) {
+      $('login-form').classList.toggle('hidden', mode !== 'login');
+      $('register-form').classList.toggle('hidden', mode !== 'register');
+    }
+
+    async function login() {
+      $('login-error').textContent = '';
+      const email = $('login-email').value.trim();
+      const password = $('login-password').value;
+      const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      if (data.error) return $('login-error').textContent = data.error;
+      await loadMe();
+      toast('Connexion reussie.');
+    }
+
+    async function register() {
+      $('register-error').textContent = '';
+      const email = $('register-email').value.trim();
+      const password = $('register-password').value;
+      const data = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password }) });
+      if (data.error) return $('register-error').textContent = data.error;
+      await loadMe();
+      toast('Compte cree.');
+    }
+
+    async function logout() {
+      await api('/api/auth/logout', { method: 'POST' });
+      currentUser = null;
+      setAuthView(false);
+    }
+
+    async function loadMe() {
+      const data = await api('/api/auth/me');
+      if (data.user) {
+        currentUser = data.user;
+        setAuthView(true);
+        updateWalletFromUser(data.user);
+        await loadHistory();
+      } else {
+        setAuthView(false);
+      }
+    }
+
+    function updateWallet(wallet) {
+      const balance = wallet.creditBalance ?? wallet.credit_balance ?? 0;
+      const dailyLimit = wallet.dailyLimit ?? wallet.daily_credit_limit ?? 0;
+      const dailyUsed = wallet.dailyUsed ?? wallet.daily_credits_used ?? 0;
+      const dailyRemaining = wallet.dailyRemaining ?? Math.max(0, dailyLimit - dailyUsed);
+      const pct = dailyLimit ? Math.min(100, Math.round((dailyRemaining / dailyLimit) * 100)) : Math.min(100, balance);
+      $('quota-fill').style.width = `${pct}%`;
+      $('quota-text').textContent = `${balance} credits + ${dailyRemaining}/${dailyLimit} credits jour`;
+    }
+
+    function updateWalletFromUser(user) {
+      const today = new Date().toISOString().slice(0, 10);
+      const expires = user.subscription_expires_at ? new Date(user.subscription_expires_at) : null;
+      const active = expires && expires > new Date();
+      const dailyLimit = active ? (user.daily_credit_limit || 0) : 0;
+      const dailyUsed = user.last_credit_date === today ? (user.daily_credits_used || 0) : 0;
+      updateWallet({
+        creditBalance: user.credit_balance || 0,
+        dailyLimit,
+        dailyUsed,
+        dailyRemaining: Math.max(0, dailyLimit - dailyUsed)
+      });
+    }
+
+    function setType(type) {
+      currentType = type;
+      document.querySelectorAll('.nav-btn[data-type]').forEach(btn => btn.classList.toggle('active', btn.dataset.type === type));
+      $('panel-title').textContent = types[type].title;
+      $('panel-subtitle').textContent = types[type].subtitle;
+      $('query-input').placeholder = types[type].placeholder;
+    }
+
+    function renderChips() {
+      $('chips').innerHTML = moduleOptions.map(([key, label]) => `<button class="chip on" data-opt="${key}">${label}</button>`).join('');
+      document.querySelectorAll('.chip').forEach(btn => btn.addEventListener('click', () => btn.classList.toggle('on')));
+    }
+
+    function tlog(prefix, text, cls = 'muted') {
+      if ($('terminal').querySelector('.empty-term')) $('terminal').innerHTML = '';
+      const line = document.createElement('div');
+      line.className = 'term-line';
+      line.innerHTML = `<i>${esc(prefix || '>')}</i><span class="${esc(cls)}">${esc(text)}</span>`;
+      $('terminal').appendChild(line);
+      $('terminal').scrollTop = $('terminal').scrollHeight;
+    }
+
+    async function runSearch() {
+      const query = $('query-input').value.trim();
+      if (!query) return toast('Ajoute une cible a analyser.');
+      currentQuery = query;
+      currentResult = null;
+      $('results').classList.add('hidden');
+      $('results').innerHTML = '';
+      $('terminal').innerHTML = '';
+      $('search-btn').disabled = true;
+      $('search-btn').textContent = 'Analyse en cours...';
+      tlog('>', `Dossier: ${query}`, 'bold');
+      tlog('>', `Type: ${currentType}`, 'info');
+      tlog('>', 'Preparation des modules OSINT prudents', 'muted');
+
+      const options = Array.from(document.querySelectorAll('.chip.on')).map(chip => chip.dataset.opt);
+      const data = await api('/api/search', {
+        method: 'POST',
+        body: JSON.stringify({ type: currentType, query, options })
+      });
+
+      $('search-btn').disabled = false;
+      $('search-btn').textContent = "Lancer l'analyse";
+
+      if (data.error) {
+        tlog('x', data.error, 'err');
+        return toast(data.error);
+      }
+
+      currentResult = data.result;
+      if (data.billing) updateWallet(data.billing);
+      $('mode-pill').textContent = currentResult.mode === 'demo' ? 'Mode demonstration' : 'Mode IA';
+      (currentResult.terminal_lines || []).forEach(line => tlog(line.prefix || '>', line.text || '', line.cls || 'muted'));
+      renderResults(currentResult);
+      await loadHistory();
+      toast('Analyse terminee.');
+    }
+
+    function renderResults(r) {
+      const overview = r.case_overview || {};
+      const stats = r.stats || [];
+      const findings = r.findings || [];
+      const risk = r.risk_matrix || [];
+      const entities = r.entities || {};
+      const timeline = r.timeline || [];
+      const sources = r.sources || [];
+      const tags = r.tags || [];
+      const results = $('results');
+      results.classList.remove('hidden');
+
+      results.innerHTML = `
+        <div class="summary-card">
+          <div class="tags" style="margin-bottom:10px">${tags.map(t => `<span class="badge tag-${esc(t.color || 'gray')}">${esc(t.text)}</span>`).join('')}</div>
+          <h3>Resume simple - ${esc(overview.target || currentQuery)}</h3>
+          <p>${esc(overview.executive_summary || r.summary || 'Rapport genere.')}</p>
+        </div>
+
+        <div class="quick-read">
+          <div class="plain-box">
+            <h4>Ce qu'il faut regarder en premier</h4>
+            <ul>${findings.slice(0, 4).map(f => `<li><b>${esc(f.title)}</b>: ${esc(f.description)}</li>`).join('')}</ul>
+          </div>
+          <div class="plain-box">
+            <h4>Niveau de risque explique</h4>
+            <ul>
+              <li><b>Risque global:</b> ${esc(overview.risk_level || 'a verifier')}</li>
+              <li><b>Confiance:</b> ${esc(overview.confidence || 'moyenne')}</li>
+              <li><b>Cout:</b> 10 credits par analyse</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="stats">${stats.map(s => `<div class="stat"><small>${esc(s.label)}</small><strong>${esc(s.value)}</strong><span>${esc(s.sub || '')}</span></div>`).join('')}</div>
+
+        <div>
+          <div class="section-title">Resultats concrets a ouvrir</div>
+          ${renderConcreteResults(r.concrete_results || [])}
+        </div>
+
+        <div>
+          <div class="section-title">Ce qu'il faut retenir</div>
+          <div class="grid-2">${findings.map(renderFinding).join('')}</div>
+        </div>
+
+        <div>
+          <div class="section-title">Sources utiles</div>
+          <div class="grid-2">${sources.map(src => `<div class="source"><b>${esc(src.name)}</b><p>${esc(src.category)} - fiabilite ${esc(src.reliability)}<br>${esc(src.notes || '')}</p>${src.url && src.url !== '#' ? `<p><a href="${esc(src.url)}" target="_blank" rel="noreferrer">${esc(src.url)}</a></p>` : ''}</div>`).join('')}</div>
+        </div>
+
+        <div class="summary-card">
+          <h3>Actions conseillees</h3>
+          <p>${(r.next_steps || []).map(step => `- ${esc(step)}`).join('<br>')}</p>
+        </div>
+
+        <details class="advanced">
+          <summary>Voir les details techniques avances</summary>
+          <div>
+            <div>
+              <div class="section-title">Risque detaille</div>
+              <div class="grid-2">${risk.map(renderRisk).join('')}</div>
+            </div>
+            <div>
+              <div class="section-title">Entites reliees</div>
+              <div class="entities">${renderEntities(entities)}</div>
+            </div>
+            ${renderTypeSpecific(r)}
+            <div>
+              <div class="section-title">Chronologie</div>
+              <div class="grid-2">${timeline.map(item => `<div class="timeline-item"><b>${esc(item.date)} - ${esc(item.label)}</b><p>${esc(item.detail)}<br><span class="muted">Confiance: ${esc(item.confidence)}</span></p></div>`).join('')}</div>
+            </div>
+          </div>
+        </details>
+      `;
+    }
+
+    function renderFinding(f) {
+      const sev = String(f.severity || 'info').toLowerCase();
+      return `<article class="finding">
+        <div class="finding-head"><b>${esc(f.title)}</b><span class="badge sev-${esc(sev)}">${esc(sev)}</span></div>
+        <p>${esc(f.description)}</p>
+        <p><span class="muted">Preuve:</span> ${esc(f.evidence)}</p>
+        <p><span class="muted">Action:</span> ${esc(f.recommended_action)}</p>
+      </article>`;
+    }
+
+    function renderConcreteResults(items) {
+      if (!items.length) return '<div class="summary-card"><p>Aucun resultat concret disponible. Ajoute des connecteurs publics pour enrichir cette section.</p></div>';
+      return `<table><thead><tr><th>Ce que c'est</th><th>Resultat</th><th>Fiabilite</th><th>Ouvrir</th></tr></thead><tbody>${items.map(item => `
+        <tr>
+          <td><b>${esc(item.label)}</b><br><span class="muted">${friendlyCategory(item.category)}</span></td>
+          <td>${esc(item.value)}</td>
+          <td>${friendlyStatus(item.status)}<br><span class="muted">Confiance: ${esc(item.confidence || 'a verifier')}</span><br><span class="muted">${esc(item.privacy_note || '')}</span></td>
+          <td>${item.source_url && item.source_url !== '#' ? `<a href="${esc(item.source_url)}" target="_blank" rel="noreferrer">ouvrir</a>` : '<span class="muted">interne</span>'}</td>
+        </tr>
+      `).join('')}</tbody></table>`;
+    }
+
+    function friendlyCategory(category) {
+      return ({
+        identity: 'Identite publique',
+        contact: 'Contact public',
+        domain: 'Domaine',
+        social: 'Profil ou mention',
+        search: 'Recherche publique',
+        technical: 'Technique',
+        business: 'Entreprise / document'
+      })[category] || esc(category || 'Autre');
+    }
+
+    function friendlyStatus(status) {
+      return ({
+        verified_public: 'Public verifie',
+        needs_verification: 'A verifier',
+        user_supplied: 'Fourni par toi'
+      })[status] || 'A verifier';
+    }
+
+    function renderRisk(item) {
+      return `<article class="risk">
+        <div class="risk-head"><b>${esc(item.axis)}</b><span class="badge tag-amber">${esc(item.score)}/100</span></div>
+        <div class="bar"><div style="width:${Math.max(0, Math.min(100, Number(item.score) || 0))}%"></div></div>
+        <p>${esc(item.evidence)}</p>
+      </article>`;
+    }
+
+    function renderEntities(entities) {
+      return Object.entries(entities)
+        .flatMap(([group, values]) => (values || []).map(value => `<span class="entity">${esc(group)}: ${esc(value)}</span>`))
+        .join('') || '<span class="muted">Aucune entite supplementaire.</span>';
+    }
+
+    function renderTypeSpecific(r) {
+      if ((r.platforms || []).length) {
+        return `<div><div class="section-title">Plateformes</div><table><thead><tr><th>Nom</th><th>Statut</th><th>Confiance</th></tr></thead><tbody>${r.platforms.map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.status)}</td><td>${esc(p.confidence)}</td></tr>`).join('')}</tbody></table></div>`;
+      }
+      if ((r.dns_records || []).length) {
+        return `<div><div class="section-title">DNS / WHOIS</div><table><thead><tr><th>Type</th><th>Valeur</th></tr></thead><tbody>${r.dns_records.map(d => `<tr><td>${esc(d.type)}</td><td>${esc(d.value)}</td></tr>`).join('')}</tbody></table></div>`;
+      }
+      if ((r.breaches || []).length) {
+        return `<div><div class="section-title">Expositions publiques a verifier</div><table><thead><tr><th>Source</th><th>Annee</th><th>Donnees</th></tr></thead><tbody>${r.breaches.map(b => `<tr><td>${esc(b.source)}</td><td>${esc(b.year)}</td><td>${esc((b.data_types || []).join(', '))}</td></tr>`).join('')}</tbody></table></div>`;
+      }
+      return '';
+    }
+
+    async function loadHistory() {
+      const data = await api('/api/history');
+      const list = $('history-list');
+      if (!data.searches || !data.searches.length) {
+        list.innerHTML = '<p>Aucun dossier pour le moment.</p>';
+        return;
+      }
+      list.innerHTML = data.searches.map(item => `
+        <button class="history-item" data-id="${esc(item.id)}" data-type="${esc(item.type)}">
+          <b>${esc(item.query)}</b>
+          <small>${esc(item.type)} - ${new Date(item.created_at).toLocaleString('fr-FR')}</small>
+        </button>
+      `).join('');
+      list.querySelectorAll('.history-item').forEach(btn => btn.addEventListener('click', () => loadHistoryItem(btn.dataset.id, btn.dataset.type)));
+    }
+
+    async function showBilling() {
+      document.querySelectorAll('.nav-btn[data-type]').forEach(btn => btn.classList.remove('active'));
+      $('panel-title').textContent = 'Credits et abonnements';
+      $('panel-subtitle').textContent = 'Chaque analyse consomme 10 credits. Choisis un pack ou un abonnement journalier.';
+      $('terminal').innerHTML = '<div class="empty-term">Page paiement prete. Les achats sont simules pour le moment, puis branchables sur Stripe.</div>';
+      $('results').classList.remove('hidden');
+      $('results').innerHTML = '<div class="summary-card"><h3>Chargement des offres...</h3><p>Lecture du portefeuille et des plans disponibles.</p></div>';
+
+      const data = await api('/api/billing/offers');
+      if (data.error) return toast(data.error);
+      updateWallet(data.wallet);
+
+      $('results').innerHTML = `
+        <div class="summary-card">
+          <h3>Portefeuille</h3>
+          <p>Une recherche coute ${esc(data.costPerSearch)} credits. Les credits pack restent disponibles, les abonnements ajoutent des credits utilisables chaque jour.</p>
+        </div>
+        <div class="wallet-grid">
+          <div class="stat"><small>Credits pack</small><strong>${esc(data.wallet.creditBalance)}</strong><span>disponibles</span></div>
+          <div class="stat"><small>Credit jour</small><strong>${esc(data.wallet.dailyRemaining)}</strong><span>restants aujourd hui</span></div>
+          <div class="stat"><small>Limite jour</small><strong>${esc(data.wallet.dailyLimit)}</strong><span>selon abonnement</span></div>
+          <div class="stat"><small>Plan actif</small><strong>${esc(data.wallet.subscriptionPlan || 'none')}</strong><span>${esc(data.wallet.subscriptionExpiresAt || 'aucune expiration')}</span></div>
+        </div>
+        <div>
+          <div class="section-title">Offres recommandees</div>
+          <div class="billing-grid">
+            ${data.offers.map(renderOffer).join('')}
+          </div>
+        </div>
+        <div class="summary-card">
+          <h3>Amelioration conseillee</h3>
+          <p>Prochaine etape logique: brancher Stripe Checkout, ajouter factures PDF, codes promo, limites par equipe et dashboard revenus admin.</p>
+        </div>
+      `;
+      document.querySelectorAll('[data-buy-offer]').forEach(btn => btn.addEventListener('click', () => purchaseOffer(btn.dataset.buyOffer)));
+    }
+
+    function renderOffer(offer) {
+      const included = offer.credits
+        ? [`${offer.credits} credits`, `${Math.floor(offer.credits / 10)} analyses`, 'Sans expiration']
+        : [`${offer.dailyCredits} credits par jour`, `${Math.floor(offer.dailyCredits / 10)} analyses par jour`, `${offer.durationDays} jours inclus`];
+      return `
+        <article class="offer ${offer.featured ? 'featured' : ''}">
+          ${offer.featured ? '<span class="badge tag-green">Meilleur choix</span>' : '<span class="badge tag-gray">Flexible</span>'}
+          <h3>${esc(offer.name)}</h3>
+          <div class="price">${esc(offer.price)}</div>
+          <p>${esc(offer.description)}</p>
+          <ul>${included.map(item => `<li>${esc(item)}</li>`).join('')}</ul>
+          <button class="btn btn-primary" data-buy-offer="${esc(offer.id)}">Choisir cette offre</button>
+        </article>
+      `;
+    }
+
+    async function purchaseOffer(offerId) {
+      const data = await api('/api/billing/purchase', {
+        method: 'POST',
+        body: JSON.stringify({ offerId })
+      });
+      if (data.error) return toast(data.error);
+      toast('Offre ajoutee au compte. Paiement simule.');
+      await showBilling();
+    }
+
+    async function loadHistoryItem(id, type) {
+      const data = await api(`/api/history/${id}`);
+      if (!data.search) return toast('Dossier introuvable.');
+      setType(type);
+      currentQuery = data.search.query;
+      currentResult = data.search.result;
+      $('query-input').value = data.search.query;
+      $('terminal').innerHTML = '';
+      (currentResult.terminal_lines || []).forEach(line => tlog(line.prefix || '>', line.text || '', line.cls || 'muted'));
+      renderResults(currentResult);
+      toast('Dossier charge.');
+    }
+
+    function exportMarkdown() {
+      if (!currentResult) return toast('Aucun rapport a exporter.');
+      const r = currentResult;
+      const overview = r.case_overview || {};
+      const lines = [
+        `# Rapport OSINT - ${overview.target || currentQuery}`,
+        '',
+        `Type: ${overview.type || currentType}`,
+        `Risque: ${overview.risk_level || 'n/a'}`,
+        `Confiance: ${overview.confidence || 'n/a'}`,
+        '',
+        '## Synthese',
+        overview.executive_summary || r.summary || '',
+        '',
+        '## Findings',
+        ...(r.findings || []).map(f => `- [${f.severity || 'info'}] ${f.title}: ${f.description} Action: ${f.recommended_action}`),
+        '',
+        '## Resultats concrets',
+        ...(r.concrete_results || []).map(item => `- ${item.label}: ${item.value} | statut: ${item.status || 'needs_verification'} | source: ${item.source_url || 'interne'}`),
+        '',
+        '## Prochaines actions',
+        ...(r.next_steps || []).map(step => `- ${step}`),
+        '',
+        '## Limites',
+        r.report_sections?.limitations || overview.legal_notice || ''
+      ];
+      const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `rapport-osint-${Date.now()}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function copyJson() {
+      if (!currentResult) return toast('Aucun JSON a copier.');
+      await navigator.clipboard.writeText(JSON.stringify(currentResult, null, 2));
+      toast('JSON copie.');
+    }
+
+    function clearCase() {
+      currentResult = null;
+      currentQuery = '';
+      $('query-input').value = '';
+      $('terminal').innerHTML = '<div class="empty-term">Pret. Choisis une cible et lance une analyse.</div>';
+      $('results').classList.add('hidden');
+      $('results').innerHTML = '';
+    }
+
+    $('show-register').addEventListener('click', () => switchAuth('register'));
+    $('show-login').addEventListener('click', () => switchAuth('login'));
+    $('login-btn').addEventListener('click', login);
+    $('register-btn').addEventListener('click', register);
+    $('logout-btn').addEventListener('click', logout);
+    $('search-btn').addEventListener('click', runSearch);
+    $('query-input').addEventListener('keydown', event => { if (event.key === 'Enter') runSearch(); });
+    $('export-btn').addEventListener('click', exportMarkdown);
+    $('copy-btn').addEventListener('click', copyJson);
+    $('print-btn').addEventListener('click', () => currentResult ? window.print() : toast('Aucun rapport a imprimer.'));
+    $('clear-btn').addEventListener('click', clearCase);
+    $('history-nav').addEventListener('click', loadHistory);
+    $('billing-nav').addEventListener('click', showBilling);
+    document.querySelectorAll('.nav-btn[data-type]').forEach(btn => btn.addEventListener('click', () => setType(btn.dataset.type)));
+
+    renderChips();
+    loadMe();
+  </script>
+</body>
+</html>
