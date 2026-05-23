@@ -16,5 +16,7 @@ services:
         sync: false
       - key: ADMIN_EMAIL
         sync: false
+      - key: PAYPAL_EMAIL
+        sync: false
       - key: PAYPAL_PAYMENT_LINK
         sync: false

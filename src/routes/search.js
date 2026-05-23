@@ -109,6 +109,7 @@ router.get('/billing/offers', requireAuth, async (req, res) => {
     costPerSearch: SEARCH_COST,
     offers: BILLING_OFFERS,
     paypalPaymentLink: process.env.PAYPAL_PAYMENT_LINK || '',
+    paypalEmail: process.env.PAYPAL_EMAIL || '',
     isAdmin: isAdmin(user),
     wallet: {
       creditBalance: user.credit_balance || 0,
@@ -141,6 +142,7 @@ router.post('/billing/purchase', requireAuth, async (req, res) => {
     requestId,
     offer,
     paypalPaymentLink: process.env.PAYPAL_PAYMENT_LINK || '',
+    paypalEmail: process.env.PAYPAL_EMAIL || '',
     message: 'Demande envoyee. Les credits seront ajoutes apres validation admin.'
   });
 });

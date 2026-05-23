@@ -733,7 +733,8 @@
       $('results').innerHTML = `
         <div class="summary-card">
           <h3>Portefeuille</h3>
-          <p>Une recherche coute ${esc(data.costPerSearch)} credits. Pour acheter: ouvre PayPal, paie le montant de l offre, puis envoie une preuve dans l app.</p>
+          <p>Une recherche coute ${esc(data.costPerSearch)} credits. Pour acheter: envoie le montant via PayPal, puis colle ton email PayPal ou une preuve dans l app.</p>
+          <p style="margin-top:10px"><b>PayPal a payer:</b> <span class="entity">${esc(data.paypalEmail || 'email PayPal a configurer')}</span></p>
         </div>
         <div class="wallet-grid">
           <div class="stat"><small>Credits pack</small><strong>${esc(data.wallet.creditBalance)}</strong><span>disponibles</span></div>
@@ -744,7 +745,7 @@
         <div>
           <div class="section-title">Offres recommandees</div>
           <div class="billing-grid">
-            ${data.offers.map(offer => renderOffer(offer, data.paypalPaymentLink)).join('')}
+            ${data.offers.map(offer => renderOffer(offer, data.paypalPaymentLink, data.paypalEmail)).join('')}
           </div>
         </div>
         <div>
@@ -760,7 +761,7 @@
       await loadPaymentRequests();
     }
 
-    function renderOffer(offer, paypalLink) {
+    function renderOffer(offer, paypalLink, paypalEmail) {
       const included = offer.credits
         ? [`${offer.credits} credits`, `${Math.floor(offer.credits / 10)} analyses`, 'Sans expiration']
         : [`${offer.dailyCredits} credits par jour`, `${Math.floor(offer.dailyCredits / 10)} analyses par jour`, `${offer.durationDays} jours inclus`];
@@ -772,7 +773,8 @@
           <p>${esc(offer.description)}</p>
           <ul>${included.map(item => `<li>${esc(item)}</li>`).join('')}</ul>
           <div class="pay-box">
-            ${paypalLink ? `<a class="btn btn-primary" href="${esc(paypalLink)}" target="_blank" rel="noreferrer">Payer avec PayPal</a>` : '<button class="btn btn-primary" disabled>Lien PayPal a configurer</button>'}
+            ${paypalLink ? `<a class="btn btn-primary" href="${esc(paypalLink)}" target="_blank" rel="noreferrer">Ouvrir PayPal</a>` : '<a class="btn btn-primary" href="https://www.paypal.com/myaccount/transfer" target="_blank" rel="noreferrer">Ouvrir PayPal</a>'}
+            <div class="hint">Envoie ${esc(offer.price)} a ${esc(paypalEmail || 'email PayPal a configurer')} puis colle ta preuve ci-dessous.</div>
             <input class="input" id="proof-${esc(offer.id)}" placeholder="Colle ici ton email PayPal ou une preuve de paiement">
             <button class="btn" data-buy-offer="${esc(offer.id)}">Envoyer la preuve</button>
           </div>
